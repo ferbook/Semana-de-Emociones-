@@ -1,4 +1,10 @@
-<!DOCTYPE html>
+let registros = JSON.parse(localStorage.getItem("registros")) || [];
+let graficaActual = null;
+
+function guardarEnLocalStorage() {
+  localStorage.setItem("registros", JSON.stringify(registros));
+guardarEnLocalStorage();
+}<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -143,6 +149,19 @@
     }
 
     crearBotones();
+    function resetSiEsNuevoDia() {
+  const hoy = new Date().toDateString();
+  const ultimoDia = localStorage.getItem("ultimoDia");
+  if (ultimoDia && ultimoDia !== hoy) {
+    exportarPDF(); // exporta el día anterior
+    registros = [];
+    guardarEnLocalStorage();
+  }
+  localStorage.setItem("ultimoDia", hoy);
+}
+
+resetSiEsNuevoDia();
+mostrarRegistro();
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('service-worker.js');
