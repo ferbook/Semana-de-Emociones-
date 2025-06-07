@@ -1,1 +1,153 @@
-<!-- index.html corregido con canvas fijo y Chart.destroy() aplicado -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mi Diario Integral</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.png" type="image/png" />
+  <meta name="theme-color" content="#d65a31" />
+  <style>
+    body { font-family: sans-serif; background-color: #fffaf4; color: #333; margin: 0; padding: 1rem; font-size: 14px; }
+    h1 { text-align: center; color: #d65a31; }
+    .emotions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 20px 0; }
+    button { padding: 10px; font-size: 14px; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+    button:hover { opacity: 0.9; }
+    .boton-inferior { background-color: #d65a31; color: white; font-weight: bold; margin-top: 8px; width: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+    textarea { width: 100%; height: 80px; margin-top: 10px; padding: 10px; font-size: 14px; border-radius: 8px; border: 1px solid #ccc; }
+    .log { margin-top: 20px; width: 100%; }
+    canvas { margin-top: 20px; width: 100%; height: 300px; }
+    .footer { text-align: center; margin-top: 30px; font-style: italic; font-size: 13px; color: #999; }
+  </style>
+</head>
+<body>
+  <h1>Mi Diario Integral</h1>
+  <div class="emotions" id="emotion-buttons"></div>
+  <textarea id="nota" placeholder="Escribe una nota o reflexión..."></textarea>
+  <button class="boton-inferior" onclick="guardarNota()">💾 Guardar Nota</button>
+  <button class="boton-inferior" onclick="registrarComida()">🥗 Registrar Comida</button>
+  <button class="boton-inferior" onclick="registrarSueno()">😴 Registrar Sueño</button>
+  <button class="boton-inferior" onclick="mostrarGrafica()">📊 Ver Gráfica</button>
+  <button class="boton-inferior" onclick="exportarPDF()">📄 Exportar PDF</button>
+  <div class="log" id="registro"></div>
+  <canvas id="grafica"></canvas>
+  <div class="footer">Susurros del Corazón</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/1.5.3/jspdf.debug.js"></script>
+  <script>
+    const emociones = [
+      { texto: "Feliz 😊", color: "#FFD700" }, { texto: "Triste 😢", color: "#87CEFA" },
+      { texto: "Ansioso 😰", color: "#FFA07A" }, { texto: "Irritado 😠", color: "#FF6347" },
+      { texto: "En paz 🧘", color: "#98FB98" }, { texto: "Motivado 💪", color: "#DDA0DD" },
+      { texto: "Agradecido 🙏", color: "#F4A460" }, { texto: "Enamorado 💖", color: "#FF69B4" },
+      { texto: "Cansado 😴", color: "#A9A9A9" }, { texto: "Aburrido 😐", color: "#D3D3D3" },
+      { texto: "Esperanzado 🌟", color: "#00CED1" }, { texto: "Frustrado 😤", color: "#DC143C" }
+    ];
+    let registros = [];
+    let graficaActual = null;
+
+    function crearBotones() {
+      const cont = document.getElementById("emotion-buttons");
+      emociones.forEach(e => {
+        const btn = document.createElement("button");
+        btn.textContent = e.texto;
+        btn.style.backgroundColor = e.color;
+        btn.style.color = "#fff";
+        btn.onclick = () => {
+          registros.push({ tipo: "emoción", emocion: e.texto, hora: new Date().toLocaleTimeString() });
+          mostrarRegistro();
+        };
+        cont.appendChild(btn);
+      });
+    }
+
+    function guardarNota() {
+      const nota = document.getElementById("nota").value.trim();
+      if (nota) {
+        registros.push({ tipo: "nota", texto: nota, hora: new Date().toLocaleTimeString() });
+        document.getElementById("nota").value = "";
+        mostrarRegistro();
+      }
+    }
+
+    function registrarComida() {
+      const comida = prompt("¿Qué comiste o a qué hora?");
+      if (comida) {
+        registros.push({ tipo: "comida", texto: comida, hora: new Date().toLocaleTimeString() });
+        mostrarRegistro();
+      }
+    }
+
+    function registrarSueno() {
+      const sueno = prompt("¿A qué hora dormiste y despertaste?");
+      if (sueno) {
+        registros.push({ tipo: "sueño", texto: sueno, hora: new Date().toLocaleTimeString() });
+        mostrarRegistro();
+      }
+    }
+
+    function mostrarRegistro() {
+      const cont = document.getElementById("registro");
+      cont.innerHTML = "";
+      registros.forEach(r => {
+        const p = document.createElement("p");
+        if (r.tipo === "emoción") p.textContent = `${r.hora} - Emoción: ${r.emocion}`;
+        else if (r.tipo === "nota") p.textContent = `${r.hora} - Nota: ${r.texto}`;
+        else if (r.tipo === "comida") p.textContent = `${r.hora} - Comida: ${r.texto}`;
+        else if (r.tipo === "sueño") p.textContent = `${r.hora} - Sueño: ${r.texto}`;
+        cont.appendChild(p);
+      });
+    }
+
+    function mostrarGrafica() {
+      const ctx = document.getElementById("grafica").getContext("2d");
+      if (graficaActual) graficaActual.destroy();
+      const conteo = {};
+      emociones.forEach(e => conteo[e.texto] = 0);
+      registros.forEach(r => {
+        if (r.tipo === "emoción") conteo[r.emocion]++;
+      });
+      const etiquetas = Object.keys(conteo).filter(e => conteo[e] > 0);
+      const datos = etiquetas.map(e => conteo[e]);
+      graficaActual = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: etiquetas,
+          datasets: [{
+            label: "Frecuencia emocional",
+            data: datos,
+            backgroundColor: etiquetas.map(e => emociones.find(em => em.texto === e).color)
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    function exportarPDF() {
+      const doc = new jsPDF();
+      doc.text("Mi Diario Integral – Registro Diario", 10, 10);
+      registros.forEach((r, i) => {
+        const y = 20 + i * 10;
+        let linea = "";
+        if (r.tipo === "emoción") linea = `${r.hora} - Emoción: ${r.emocion}`;
+        if (r.tipo === "nota") linea = `${r.hora} - Nota: ${r.texto}`;
+        if (r.tipo === "comida") linea = `${r.hora} - Comida: ${r.texto}`;
+        if (r.tipo === "sueño") linea = `${r.hora} - Sueño: ${r.texto}`;
+        doc.text(linea, 10, y);
+      });
+      doc.save("diario_emocional.pdf");
+    }
+
+    crearBotones();
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js');
+      });
+    }
+  </script>
+</body>
+</html>
